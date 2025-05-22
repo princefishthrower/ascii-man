@@ -84,8 +84,12 @@ export default class Player {
   }
 
   land(platformY: number): void {
-    // Adjust position to platform top
-    this.state.position.y = platformY - this.state.size.height;
+    // To correctly position the player ON the platform, we need to adjust for the collision box offset.
+    // The player's collision box top is at `this.state.position.y + 25`.
+    // We want this collision box top to be at `platformY - this.state.size.height`.
+    // So, `this.state.position.y + 25 = platformY - this.state.size.height`.
+    // Therefore, `this.state.position.y = platformY - this.state.size.height - 25`.
+    this.state.position.y = platformY - this.state.size.height - 25; // 25 is the offset from getPosition()
     this.state.velocity.y = 0;
     this.state.isJumping = false;
     
@@ -182,6 +186,10 @@ export default class Player {
 
   getVelocity(): Point {
     return { ...this.state.velocity };
+  }
+
+  isJumping(): boolean {
+    return this.state.isJumping;
   }
 
   getWeaponLevel(): number {
