@@ -127,6 +127,10 @@ export default class Enemy {
     return { ...this.state.size };
   }
 
+  getIsActive(): boolean {
+    return this.state.isActive;
+  }
+
   destroy(): void {
     // Cleanup any resources
   }

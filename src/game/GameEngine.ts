@@ -7,6 +7,7 @@ import LevelManager from './levels/LevelManager';
 import Projectile from './entities/Projectile';
 import CollisionManager from './utils/CollisionManager';
 import InputManager from './utils/InputManager';
+import { weaponData } from './entities/weapons';
 
 interface GameCallbacks {
   onScoreChange: (score: number) => void;
@@ -30,7 +31,7 @@ export default class GameEngine {
   private lives: number = 3;
   private callbacks: GameCallbacks;
   private levelWidth: number = 2000;
-  private platforms: PIXI.Graphics[] = [];
+  private platforms: PIXI.Container[] = [];
 
   constructor(app: PIXI.Application, callbacks: GameCallbacks) {
     this.app = app;
@@ -38,6 +39,7 @@ export default class GameEngine {
     
     // Create a container for the game
     this.gameContainer = new PIXI.Container();
+    this.gameContainer.sortableChildren = true; // Enable sorting for zIndex
     this.app.stage.addChild(this.gameContainer);
     
     // Initialize managers
@@ -69,15 +71,39 @@ export default class GameEngine {
   }
 
   private setupLevel(levelConfig: LevelConfig): void {
-    // Create platforms
+    // Create platforms using "=" character
     levelConfig.platforms.forEach(platform => {
-      const graphics = new PIXI.Graphics();
-      graphics.beginFill(0x444444);
-      graphics.drawRect(0, 0, platform.width, 20);
-      graphics.endFill();
-      graphics.position.set(platform.x, platform.y);
-      this.platforms.push(graphics);
-      this.gameContainer.addChild(graphics);
+      const container = new PIXI.Container();
+      container.position.set(platform.x, platform.y);
+      
+      // Create a text of repeated "=" characters for the platform
+      const platformText = new PIXI.Text(
+        "=".repeat(Math.ceil(platform.width / 8)), // Approximately scale to the desired width 
+        { 
+          fontFamily: 'Courier New',
+          fontSize: 16,
+          fill: 0xffffff, // White color
+          align: 'left'
+        }
+      );
+      
+      container.addChild(platformText);
+      
+      // Create an invisible hitbox for collisions
+      const hitbox = new PIXI.Graphics();
+      hitbox.beginFill(0x000000, 0); // Transparent fill
+      hitbox.drawRect(0, 0, platform.width, 16); // Match height to font size
+      hitbox.endFill();
+      
+      container.addChild(hitbox);
+      
+      // Store the container's Graphics object for collision detection
+      (container as any).getBounds = () => {
+        return new PIXI.Rectangle(platform.x, platform.y, platform.width, 16);
+      };
+      
+      this.platforms.push(container as any);
+      this.gameContainer.addChild(container);
     });
 
     // Create enemies
@@ -92,6 +118,7 @@ export default class GameEngine {
       const powerUp = new PowerUp(this.app, powerUpConfig);
       this.powerUps.push(powerUp);
       this.gameContainer.addChild(powerUp.container);
+      console.log('PowerUp created and added to gameContainer:', powerUpConfig, powerUp.container.zIndex);
     });
   }
 
@@ -130,18 +157,27 @@ export default class GameEngine {
     // Update input
     const input = this.inputManager.getInput();
     
+    // Log input for debugging
+    if (input.shoot) {
+      // console.log('Shoot input detected in GameEngine'); // Reduced console noise
+    }
+    
     // Check platform collisions before updating player
     this.checkPlatformCollisions();
     
-    // Update player
-    this.player.update(delta, input);
+    // Update player and get any new projectiles
+    const newProjectilesFromPlayer = this.player.update(delta, input);
     
-    // Handle player shooting
-    if (input.shoot && this.player.canShoot()) {
-      const newProjectiles = this.player.shoot();
-      newProjectiles.forEach(projectile => {
+    // Handle player shooting - projectiles are now returned from player.update
+    if (newProjectilesFromPlayer.length > 0) {
+      console.log('Player shot, creating projectiles in GameEngine:', newProjectilesFromPlayer.length);
+      newProjectilesFromPlayer.forEach(projectile => {
         this.projectiles.push(projectile);
         this.gameContainer.addChild(projectile.container);
+        // Ensure projectile container is visible and has proper z-index
+        projectile.container.visible = true;
+        projectile.container.zIndex = 100; // Ensure projectiles are rendered above other elements
+        console.log('Added projectile to game container at position:', projectile.getPosition());
       });
     }
     
@@ -178,14 +214,15 @@ export default class GameEngine {
     // Only check for platform collisions if player is moving downward
     if (playerVelocity.y > 0) {
       for (const platform of this.platforms) {
+        // Using the getBounds method we attached to the platform container
         const platformBounds = platform.getBounds();
         
         // Check if player's feet are within platform bounds
         if (
           playerPos.x + playerSize.width > platformBounds.x &&
           playerPos.x < platformBounds.x + platformBounds.width &&
-          playerPos.y + playerSize.height >= platformBounds.y &&
-          playerPos.y + playerSize.height <= platformBounds.y + platformBounds.height
+          playerPos.y + playerSize.height >= platformBounds.y - 2 && // Detect collision slightly above platform
+          playerPos.y + playerSize.height <= platformBounds.y + 10 // Allow for a little overlap
         ) {
           // Land on platform
           this.player.land(platformBounds.y);
@@ -221,7 +258,7 @@ export default class GameEngine {
   }
 
   private handlePlayerEnemyCollision(enemy: Enemy): void {
-    if (!enemy.isActive || this.player.isInvulnerable()) return;
+    if (!enemy.getIsActive() || this.player.isInvulnerable()) return;
     
     this.lives--;
     this.callbacks.onLifeChange(this.lives);
@@ -239,10 +276,11 @@ export default class GameEngine {
   }
 
   private handlePlayerPowerUpCollision(powerUp: PowerUp): void {
-    if (!powerUp.isActive) return;
+    if (!powerUp.getIsActive()) return;
     
     if (powerUp.getType() === 'weapon') {
-      const nextWeaponLevel = Math.min(this.player.getWeaponLevel() + 1, 4);
+      const currentWeaponLevel = this.player.getWeaponLevel();
+      const nextWeaponLevel = Math.min(currentWeaponLevel + 1, weaponData.length - 1);
       this.player.setWeaponLevel(nextWeaponLevel);
       this.callbacks.onWeaponChange(nextWeaponLevel);
     }
@@ -253,12 +291,12 @@ export default class GameEngine {
   }
 
   private handleProjectileEnemyCollision(projectile: Projectile, enemy: Enemy): void {
-    if (!projectile.isActive || !enemy.isActive) return;
+    if (!projectile.getIsActive() || !enemy.getIsActive()) return;
     
     enemy.takeDamage(projectile.getDamage());
     projectile.hit();
     
-    if (!enemy.isActive) {
+    if (!(enemy as any).isActive) {
       this.score += 200;
       this.callbacks.onScoreChange(this.score);
     }
@@ -267,7 +305,7 @@ export default class GameEngine {
   private cleanupEntities(): void {
     // Remove inactive projectiles
     this.projectiles = this.projectiles.filter(projectile => {
-      if (!projectile.isActive) {
+      if (!projectile.getIsActive()) {
         this.gameContainer.removeChild(projectile.container);
         projectile.destroy();
         return false;
@@ -277,7 +315,7 @@ export default class GameEngine {
     
     // Remove inactive enemies
     this.enemies = this.enemies.filter(enemy => {
-      if (!enemy.isActive) {
+      if (!enemy.getIsActive()) {
         this.gameContainer.removeChild(enemy.container);
         enemy.destroy();
         return false;
@@ -287,7 +325,7 @@ export default class GameEngine {
     
     // Remove collected power-ups
     this.powerUps = this.powerUps.filter(powerUp => {
-      if (!powerUp.isActive) {
+      if (!powerUp.getIsActive()) {
         this.gameContainer.removeChild(powerUp.container);
         powerUp.destroy();
         return false;

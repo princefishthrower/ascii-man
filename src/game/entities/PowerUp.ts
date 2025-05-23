@@ -28,7 +28,8 @@ export default class PowerUp {
     
     this.container = new PIXI.Container();
     this.container.position.set(this.state.position.x, this.state.position.y);
-    
+    this.container.zIndex = 50; // Ensure it's above default zIndex elements
+
     // Create ASCII art for power-up
     this.text = new PIXI.Text(
       '[+1]', 
@@ -41,7 +42,7 @@ export default class PowerUp {
     );
     
     this.container.addChild(this.text);
-    
+
     // Add floating animation
     this.app.ticker.add(this.animate, this);
   }
@@ -100,6 +101,10 @@ export default class PowerUp {
 
   getType(): string {
     return this.state.type;
+  }
+
+  getIsActive(): boolean {
+    return this.state.isActive;
   }
 
   destroy(): void {

@@ -45,5 +45,24 @@ export const weaponData: WeaponData[] = [
     cooldown: 10,
     speed: 15,
     pattern: "stream"
-  }
+  },
+  {
+    name: "Arc Repeater Mk. I",
+    ascii: `/≡⚡≡[`,
+    projectile: "↯",
+    damage: 22,
+    cooldown: 7,
+    speed: 18,
+    pattern: "stream"
+  },
+  {
+    name: "Arc Repeater Mk. VII",
+    ascii: `---
+/≡⚡≡⚡≡[`,
+    projectile: "↯",
+    damage: 22,
+    cooldown: 7,
+    speed: 18,
+    pattern: "stream"
+  },
 ];

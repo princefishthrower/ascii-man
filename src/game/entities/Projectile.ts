@@ -19,9 +19,9 @@ export default class Projectile {
     this.app = app;
     
     this.state = {
-      position: { x: config.x, y: config.y },
+      position: { x: config.x, y: config.y }, 
       velocity: { ...config.velocity },
-      size: { width: 10, height: 10 },
+      size: { width: 10, height: 10 }, 
       isActive: true,
       damage: config.damage,
       character: config.character
@@ -35,13 +35,28 @@ export default class Projectile {
       this.state.character, 
       { 
         fontFamily: 'Courier New',
-        fontSize: 16,
-        fill: 0xffff00,
-        align: 'center'
+        fontSize: 24, // Increased size
+        fill: 0xffff00, // Yellow
+        align: 'center',
+        fontWeight: 'bold' // Make it bold
       }
     );
     
+    // Center the text within the container
+    this.text.anchor.set(0.5);
+    
+    // Set zIndex to ensure projectiles are visible above other elements
+    this.container.zIndex = 100;
+    
+    // Flip the character if moving left
+    if (config.velocity.x < 0) {
+      this.text.scale.x = -1;
+    }
+    
     this.container.addChild(this.text);
+    
+    // Log that a projectile was created with important details
+    console.log('Projectile created at position:', this.state.position, 'with character:', this.state.character, 'velocity:', this.state.velocity);
   }
 
   update(delta: number): void {
@@ -51,13 +66,19 @@ export default class Projectile {
     this.state.position.x += this.state.velocity.x * delta;
     this.state.position.y += this.state.velocity.y * delta;
     
-    // Check if out of bounds
+    // Log projectile position periodically for debugging
+    if (Math.random() < 0.01) { // Only log occasionally to prevent console spam
+      console.log('Projectile position:', this.state.position);
+    }
+    
+    // Check if out of bounds - with much larger bounds so projectiles stay on screen longer
     if (
-      this.state.position.x < 0 || 
-      this.state.position.x > this.app.screen.width ||
-      this.state.position.y < 0 || 
-      this.state.position.y > this.app.screen.height
+      this.state.position.x < -500 || 
+      this.state.position.x > this.app.screen.width + 500 ||
+      this.state.position.y < -500 || 
+      this.state.position.y > this.app.screen.height + 500
     ) {
+      console.log('Projectile went out of bounds and was deactivated');
       this.state.isActive = false;
     }
     
@@ -107,6 +128,10 @@ export default class Projectile {
 
   getDamage(): number {
     return this.state.damage;
+  }
+
+  getIsActive(): boolean {
+    return this.state.isActive;
   }
 
   destroy(): void {
